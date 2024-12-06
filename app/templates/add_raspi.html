@@ -1,0 +1,23 @@
+<!-- app/templates/add_raspi.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Raspberry Pi</title>
+</head>
+<body>
+    <h1>Add Raspberry Pi</h1>
+    <form action="/add_raspi" method="POST">
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name" required>
+        <br><br>
+        
+        <label for="ip_address">IP Address:</label>
+        <input type="text" id="ip_address" name="ip_address" required>
+        <br><br>
+        
+        <button type="submit">Add Raspberry Pi</button>
+    </form>
+</body>
+</html>

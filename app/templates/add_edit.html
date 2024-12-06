@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add/Edit Raspberry Pi</title>
+</head>
+<body>
+<!-- Raspberry Pi 編集フォーム -->
+
+<h1>{{ 'Edit' if raspi else 'Add' }} Raspberry Pi</h1>
+<form action="{{ url_for('main.add_raspi') }}" method="POST">
+    <label for="name">Name:</label>
+    <input type="text" id="name" name="name" value="{{ raspi[1] if raspi else '' }}" required><br>
+
+    <label for="ip_address">IP Address:</label>  <!-- 'ip_address' として設定 -->
+    <input type="text" id="ip_address" name="ip_address" value="{{ raspi[2] if raspi else '' }}" required><br>
+
+    <button type="submit">{{ 'Save' if raspi else 'Add' }}</button>
+</form>
+
+    <button onclick="window.location.href='/dashboard'">Cancel</button>
+    <button onclick="window.location.href='/dashboard'">Cancel</button>
+
+    <script>
+        const isEdit = window.location.pathname.startsWith('/edit');
+        const formTitle = document.getElementById('form-title');
+        const form = document.getElementById('raspi-form');
+    
+        if (isEdit) {
+            formTitle.innerText = 'Edit Raspberry Pi';
+            const raspiId = window.location.pathname.split('/').pop();
+    
+            fetch(`/api/raspberry/${raspiId}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('name').value = data.name;
+                    document.getElementById('ip').value = data.ip;
+                });
+        }
+    
+        form.addEventListener('submit', e => {
+            e.preventDefault();
+            const method = isEdit ? 'PUT' : 'POST';
+            const endpoint = isEdit ? `/api/raspberry/${raspiId}` : '/api/raspberry';
+    
+            fetch(endpoint, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: form.name.value,
+                    ip: form.ip.value
+                })
+            })
+                .then(() => window.location.href = '/dashboard')
+                .catch(error => console.error('Error saving Raspberry Pi:', error));
+        });
+    </script>
+    
+</body>
+</html>

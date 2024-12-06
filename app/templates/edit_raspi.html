@@ -1,0 +1,9 @@
+<!-- edit_raspi.html -->
+<h1>Raspberry Pi 編集</h1>
+<form method="POST">
+    <label for="name">Name:</label>
+    <input type="text" id="name" name="name" value="{{ raspi[1] }}" required><br><br>
+    <label for="ip_address">IP Address:</label>
+    <input type="text" id="ip_address" name="ip_address" value="{{ raspi[2] }}" required><br><br>
+    <button type="submit">更新</button>
+</form>
