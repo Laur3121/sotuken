@@ -1,18 +1,9 @@
 import sqlite3
 import logging
+from utils import get_local_temperature, get_remote_temperature  # utils.pyからインポート
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)
-
-# 温度取得関数（仮の実装、実際の関数に合わせてください）
-def get_local_temperature():
-    # ローカルの温度取得処理を実装
-    return 45.0  # 仮の温度
-
-def get_remote_temperature(ip_address, username, password):
-    # SSH経由でリモート温度を取得する処理を実装
-    # 仮の戻り値として温度を返す
-    return 50.0  # 仮の温度
 
 def log_temperature():
     conn = sqlite3.connect("raspberries.db")
@@ -46,6 +37,7 @@ def log_temperature():
 
     conn.commit()
     conn.close()
+
 
 def main():
     log_temperature()
