@@ -47,3 +47,8 @@ def log_temperature():
     conn.commit()
     conn.close()
 
+def main():
+    log_temperature()
+
+if __name__ == "__main__":
+    main()
