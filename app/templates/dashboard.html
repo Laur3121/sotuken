@@ -1,4 +1,3 @@
-<!-- app/templates/dashboard.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,37 +8,38 @@
 </head>
 
 <body>
-<!-- dashboard.html -->
-<h1>Raspberry Pi一覧</h1>
-<div class="container">
-    <!-- 右上に配置するためにボタンを追加 -->
-    <a href="{{ url_for('main.add_raspi') }}" class="add-button">追加</a>
-<table>
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>IP Address</th>
-            <th>Status</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for rasp in raspberries %}
-            <tr>
-                <td>{{ rasp[0] }}</td>
-                <td>{{ rasp[1] }}</td>
-                <td>{{ rasp[2] }}</td>
-                <td>{{ rasp[3] }}</td>
-                <td>
-                    {% for raspi in raspis %}
-    <p>{{ raspi[1] }} (ID: {{ raspi[0] }})</p>
-    <a href="{{ url_for('main.edit_raspi', id=raspi[0]) }}">Edit</a>
-{% endfor %}
-                    <a href="{{ url_for('main.delete_raspi', raspi_id=rasp[0]) }}">削除</a>
-                </td>
-            </tr>
-        {% endfor %}
-    </tbody>
-</table>
+    <h1>Raspberry Pi一覧</h1>
+    <div class="container">
+        <!-- 右上に配置するためにボタンを追加 -->
+        <a href="{{ url_for('main.add_raspi') }}" class="add-button">追加</a>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>IP Address</th>
+                    <th>Status</th>
+                    <th>Current Temperature (°C)</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for raspi in raspberries %}
+                <tr>
+                    <td>{{ raspi[0] }}</td>
+                    <td>{{ raspi[1] }}</td>
+                    <td>{{ raspi[2] }}</td>
+                    <td>{{ raspi[3] }}</td>
+                    <td>{{ raspi[4] or "N/A" }} °C</td>
+                    <td>
+                        <a href="/details/{{ raspi[0] }}">Details</a> |
+                        <a href="{{ url_for('main.edit_raspi', id=raspi[0]) }}">Edit</a> |
+                        <a href="{{ url_for('main.delete_raspi', raspi_id=raspi[0]) }}">削除</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </body>
 </html>

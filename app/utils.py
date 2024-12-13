@@ -14,7 +14,6 @@ def get_local_temperature():
     except Exception as e:
         return f"Error: {str(e)}"
 
-# 他のRaspberry PiにSSH接続して温度を取得
 def get_remote_temperature(host, username, password):
     try:
         # SSHクライアントの初期化
@@ -35,4 +34,6 @@ def get_remote_temperature(host, username, password):
         temp_str = output.replace("temp=", "").replace("'C", "")
         return float(temp_str)
     except Exception as e:
+        print(f"Failed to get temperature from {host}: {str(e)}")  # 詳細なエラーメッセージを表示
         return f"Error: Unable to get temperature from {host}, {str(e)}"
+

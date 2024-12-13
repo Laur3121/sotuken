@@ -1,0 +1,13 @@
+<h1>Temperature History</h1>
+<table>
+    <tr>
+        <th>Timestamp</th>
+        <th>Temperature (°C)</th>
+    </tr>
+    {% for log in logs %}
+    <tr>
+        <td>{{ log[0] }}</td>
+        <td>{{ log[1] }}</td>
+    </tr>
+    {% endfor %}
+</table>
