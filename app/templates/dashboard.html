@@ -3,43 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <title>Raspberry Pi Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-
 <body>
-    <h1>Raspberry Pi一覧</h1>
-    <div class="container">
-        <!-- 右上に配置するためにボタンを追加 -->
-        <a href="{{ url_for('main.add_raspi') }}" class="add-button">追加</a>
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>IP Address</th>
-                    <th>Status</th>
-                    <th>Current Temperature (°C)</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for raspi in raspberries %}
-                <tr>
-                    <td>{{ raspi[0] }}</td>
-                    <td>{{ raspi[1] }}</td>
-                    <td>{{ raspi[2] }}</td>
-                    <td>{{ raspi[3] }}</td>
-                    <td>{{ raspi[4] or "N/A" }} °C</td>
-                    <td>
-                        <a href="/details/{{ raspi[0] }}">Details</a> |
-                        <a href="{{ url_for('main.edit_raspi', id=raspi[0]) }}">Edit</a> |
-                        <a href="{{ url_for('main.delete_raspi', raspi_id=raspi[0]) }}">削除</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    <header>
+        <h1>Raspberry Pi Dashboard</h1>
+        <a href="{{ url_for('main.add_raspi') }}" class="add-button">Add Raspberry Pi</a>
+    </header>
+
+    <main>
+        <div class="container">
+            <!-- リセットボタン -->
+            <form action="{{ url_for('main.reset_database') }}" method="post" style="margin-bottom: 20px;">
+                <button type="submit" class="reset-button">Reset Database</button>
+            </form>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>IP Address</th>
+                        <th>Status</th>
+                        <th>Current Temperature (°C)</th>
+                        <th>Location</th> <!-- 位置情報の列 -->
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for raspi in raspberries %}
+                    <tr>
+                        <td>{{ raspi[0] }}</td>
+                        <td>{{ raspi[1] }}</td>
+                        <td>{{ raspi[2] }}</td>
+                        <td>{{ raspi[3] }}</td>
+                        <td>{{ raspi[5] if raspi[5] else 'N/A' }}</td> <!-- 最新温度を表示 -->
+                        <td>{{ raspi[4] }}</td> <!-- 位置情報の表示 -->
+                        <td>
+                            <a href="/details/{{ raspi[0] }}">Details</a> |
+                            <a href="{{ url_for('main.edit_raspi', id=raspi[0]) }}">Edit</a> |
+                            <a href="{{ url_for('main.delete_raspi', id=raspi[0]) }}">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Raspberry Pi Monitoring</p>
+    </footer>
 </body>
 </html>

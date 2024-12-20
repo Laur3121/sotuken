@@ -8,7 +8,8 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         ip_address TEXT NOT NULL,
-        status TEXT NOT NULL
+        status TEXT NOT NULL,
+        location INTEGER CHECK(location >= 1 AND location <= 9) NOT NULL
     )''')
     conn.commit()
     conn.close()
