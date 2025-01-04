@@ -111,6 +111,8 @@ def log_temperature_periodically(interval):
         time.sleep(interval)
 
 
+
+
 # 温度記録を停止
 def stop_logging():
     """
