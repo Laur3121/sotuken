@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raspberry Pi Grid Dashboard</title>
+    <style>
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 20px;
+        }
+        .grid-item {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Raspberry Pi Grid Dashboard</h1>
+    <div class="grid-container">
+        {% for raspi in grid_data %}
+        <div class="grid-item">
+            <h3>{{ raspi.name }}</h3>
+            <p>IP: {{ raspi.ip_address }}</p>
+            <p>Temperature: {{ raspi.temperature }} °C</p>
+            <p>CPU Usage: {{ raspi.cpu_usage }}</p>
+            <p>Docker Containers: {{ raspi.docker_containers }}</p>
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>

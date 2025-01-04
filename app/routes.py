@@ -3,6 +3,8 @@ import sqlite3
 from flask import Blueprint
 import logging
 import os
+import paramiko
+
 
 # ログの基本設定
 logging.basicConfig(level=logging.DEBUG)
@@ -30,6 +32,29 @@ def get_latest_temperatures():
     conn.close()
 
     return temperatures
+
+
+def get_cpu_usage(ip_address, username, password):
+    command = "top -bn1 | grep 'Cpu(s)' | awk '{print $2 + $4}'"
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(ip_address, username=username, password=password)
+    
+    stdin, stdout, stderr = ssh.exec_command(command)
+    cpu_usage = stdout.read().decode().strip()
+    ssh.close()
+    return f"{cpu_usage}%"
+
+def get_docker_containers(ip_address, username, password):
+    command = "docker ps --format '{{.Names}}'"
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(ip_address, username=username, password=password)
+    
+    stdin, stdout, stderr = ssh.exec_command(command)
+    containers = stdout.read().decode().strip().split('\n')
+    ssh.close()
+    return ", ".join(containers)
 
 
 # データベースの初期化
@@ -77,7 +102,8 @@ def reset_database():
         name TEXT NOT NULL,
         ip_address TEXT NOT NULL,
         status TEXT NOT NULL,
-        location INTEGER
+        location INTEGER,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     ''')
 
@@ -95,6 +121,7 @@ def reset_database():
     conn.close()
 
     return redirect(url_for('main.dashboard'))
+
 
 @main.route("/")
 def dashboard():
@@ -256,6 +283,42 @@ def details(id):
     temperature_logs = cursor.fetchall()
     conn.close()
     return render_template("details.html", logs=temperature_logs)
+
+@main.route('/grid_dashboard')
+def grid_dashboard():
+    conn = sqlite3.connect('raspberries.db')
+    cursor = conn.cursor()
+
+    # Raspberry Pi情報を取得
+    cursor.execute('''
+    SELECT r.id, r.name, r.ip_address,
+           (SELECT temperature FROM temperature_logs WHERE raspberry_id = r.id ORDER BY timestamp DESC LIMIT 1) AS latest_temp,
+           r.status
+    FROM raspberries r
+    ''')
+    raspberries = cursor.fetchall()
+
+    grid_data = []
+    for raspi in raspberries:
+        ip_address = raspi[2]
+        # SSHで情報を取得（ユーザー名とパスワードは環境変数や設定ファイルで管理することを推奨）
+        cpu_usage = get_cpu_usage(ip_address, "ubuntu", "ubuntu")
+        docker_containers = get_docker_containers(ip_address, "ubuntu", "ubuntu")
+
+        grid_data.append({
+            'id': raspi[0],
+            'name': raspi[1],
+            'ip_address': raspi[2],
+            'temperature': raspi[3],
+            'status': raspi[4],
+            'cpu_usage': cpu_usage,
+            'docker_containers': docker_containers
+        })
+
+    conn.close()
+    return render_template('grid_dashboard.html', grid_data=grid_data)
+
+
 
 
 
