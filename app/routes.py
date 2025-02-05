@@ -4,6 +4,10 @@ from flask import Blueprint
 import logging
 import os
 import paramiko
+import time
+import datetime
+import threading
+
 
 
 # ログの基本設定
@@ -33,17 +37,34 @@ def get_latest_temperatures():
 
     return temperatures
 
+import subprocess
 
-def get_cpu_usage(ip_address, username, password):
-    command = "top -bn1 | grep 'Cpu(s)' | awk '{print $2 + $4}'"
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(ip_address, username=username, password=password)
-    
-    stdin, stdout, stderr = ssh.exec_command(command)
-    cpu_usage = stdout.read().decode().strip()
-    ssh.close()
-    return f"{cpu_usage}%"
+import pexpect
+
+import pexpect
+
+# CPU 使用率を取得する関数
+def get_cpu_usage(raspi_id):
+    conn = create_connection()
+    cursor = conn.cursor()
+
+    # 最新の CPU 使用率を取得
+    cursor.execute("""
+        SELECT cpu_temperature, timestamp FROM cpu_temperature_logs
+        WHERE raspberry_id = ?
+        ORDER BY timestamp DESC
+        LIMIT 1
+    """, (raspi_id,))
+    cpu_data = cursor.fetchone()
+    conn.close()
+
+    if cpu_data:
+        # 例えば、CPU 使用率の最後の値を取り出して返す
+        return cpu_data[0]  # cpu_temperature を使用している場合
+    return None
+
+
+
 
 def get_docker_containers(ip_address, username, password):
     command = "docker ps --format '{{.Names}}'"
@@ -300,12 +321,14 @@ def grid_dashboard():
     cursor.execute('''
     SELECT r.id, r.name, r.ip_address,
            (SELECT temperature FROM temperature_logs WHERE raspberry_id = r.id ORDER BY timestamp DESC LIMIT 1) AS latest_temp,
+           (SELECT cpu_usage FROM cpu_usage_logs WHERE raspberry_id = r.id ORDER BY timestamp DESC LIMIT 1) AS latest_cpu_usage,
            r.status, r.location
     FROM raspberries r
     ''')
     raspberries = cursor.fetchall()
 
     grid_data = []
+
     for raspi in raspberries:
         location = raspi['location']
         if location:
@@ -320,22 +343,152 @@ def grid_dashboard():
             location_x = 1
             location_y = 1
 
-        # CPU使用率をリアルタイムで取得 (ここでは全体のCPU使用率)
-        cpu_usage = psutil.cpu_percent(interval=1)
+        # CPU使用率とDockerコンテナ情報をデータベースから取得
+        cpu_usage = raspi['latest_cpu_usage'] if raspi['latest_cpu_usage'] is not None else "N/A"
+        docker_containers = get_docker_containers(raspi['ip_address'], 'ubuntu', 'ubuntu')
+        if not docker_containers:
+            docker_containers = "No containers running"
 
         grid_data.append({
             "id": raspi['id'],
             "name": raspi['name'],
             "ip_address": raspi['ip_address'],
             "temperature": raspi['latest_temp'],
-            "cpu_usage": f"{cpu_usage} %",
-            "docker_containers": "-",  # ここもデータ取得可能なら変更
+            "cpu_usage": cpu_usage,
+            "docker_containers": docker_containers,
             "location_x": location_x,
             "location_y": location_y
         })
 
     conn.close()
     return render_template('grid_dashboard.html', grid_data=grid_data)
+import sqlite3
+import logging
+
+# 重みを設定する
+w_t = 1  # 温度の重み
+w_u = 1  # CPU使用率の重み
+w_d = 1  # 位置の重み
+
+# 温度を取得する関数（データベースから）
+def get_temperature(raspberry_id):
+    conn = sqlite3.connect("raspberries.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT temperature
+        FROM temperature_logs
+        WHERE raspberry_id = ?
+        ORDER BY timestamp DESC
+        LIMIT 1
+    """, (raspberry_id,))
+    
+    result = cursor.fetchone()
+    conn.close()
+
+    if result:
+        return result[0]
+    return None
+
+
+
+# Raspberry Piの位置を取得する関数（データベースから）
+def get_location(raspberry_id):
+    conn = sqlite3.connect("raspberries.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT location
+        FROM raspberries
+        WHERE id = ?
+    """, (raspberry_id,))
+    
+    result = cursor.fetchone()
+    conn.close()
+
+    if result:
+        return result[0]
+    return None
+
+# ユークリッド距離を計算する関数
+def euclidean_distance(x1, y1, x2, y2):
+    return abs(x1 - x2) + abs(y1 - y2)
+
+# 評価式を計算する関数
+def evaluate_migration(raspi_x, raspi_y, w_t, w_u, w_d):
+    # 温度の差
+    temp_diff = raspi_x['temperature'] - raspi_y['temperature']
+    
+    # CPU使用率の差
+    cpu_usage_x = raspi_x['cpu_usage']
+    cpu_usage_y = raspi_y['cpu_usage']
+    cpu_diff = (1 - cpu_usage_y / 100)
+    
+    # 位置の距離
+    location_x = raspi_x['location']
+    location_y = raspi_y['location']
+    if location_x and location_y:
+        match_x = re.search(r'x(\d+)y(\d+)', location_x)
+        match_y = re.search(r'x(\d+)y(\d+)', location_y)
+        if match_x and match_y:
+            x1, y1 = int(match_x.group(1)), int(match_x.group(2))
+            x2, y2 = int(match_y.group(1)), int(match_y.group(2))
+            location_diff = euclidean_distance(x1, y1, x2, y2)
+        else:
+            location_diff = 0
+    else:
+        location_diff = 0
+
+    # 評価式
+    score = (w_t * temp_diff) + (w_u * cpu_diff) + (w_d * location_diff)
+    return score
+
+# マイグレーションを実行する関数
+def perform_migration():
+    # Raspberry Pi x の情報
+    raspi_x = {
+        'id': 1,  # Raspberry Pi x の ID
+        'ip_address': '192.168.0.16',  # Raspberry Pi x の IPアドレス
+        'temperature': get_temperature(1),  # 最新温度
+        'cpu_usage': get_cpu_usage('192.168.0.16', 'ubuntu', 'ubuntu'),  # CPU使用率
+        'location': get_location(1)  # 位置
+    }
+
+    # マイグレーション先 Raspberry Pi の IP をデータベースから取得
+    conn = sqlite3.connect("raspberries.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, ip_address FROM raspberries WHERE id != ?
+    """, (raspi_x['id'],))
+    
+    raspi_y_list = []
+    for row in cursor.fetchall():
+        raspi_y_list.append({
+            'id': row[0],
+            'ip_address': row[1],
+            'temperature': get_temperature(row[0]),
+            'cpu_usage': get_cpu_usage(row[1], 'ubuntu', 'password'),
+            'location': get_location(row[0])
+        })
+    conn.close()
+
+    best_score = None
+    best_raspi_y = None
+
+    # マイグレーション先を評価
+    for raspi_y in raspi_y_list:
+        if raspi_y['temperature'] <= raspi_x['temperature']:  # 温度が高すぎない
+            score = evaluate_migration(raspi_x, raspi_y, w_t, w_u, w_d)
+            if best_score is None or score < best_score:
+                best_score = score
+                best_raspi_y = raspi_y
+
+    if best_raspi_y:
+        logging.info(f"Best Raspberry Pi for migration: {best_raspi_y['id']} at {best_raspi_y['ip_address']} with score {best_score}")
+    else:
+        logging.info("No suitable Raspberry Pi found for migration.")
+
 
 
 

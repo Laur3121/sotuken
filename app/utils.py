@@ -3,27 +3,16 @@ import logging
 import time
 import paramiko
 import threading
+import datetime
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)
 
-# データベースから最新の温度情報を取得する関数
-def get_latest_temperatures():
-    conn = sqlite3.connect("raspberries.db")
-    cursor = conn.cursor()
-
-    # 最新の温度データを取得
-    cursor.execute("""
-        SELECT r.ip_address, t.temperature, t.timestamp
-        FROM temperature_logs t
-        JOIN raspberries r ON t.raspberry_id = r.id
-        ORDER BY t.timestamp DESC
-        LIMIT 5
-    """)
-    temperatures = cursor.fetchall()
-    conn.close()
-
-    return temperatures
+# データベース接続を作成して返す
+def create_connection():
+    conn = sqlite3.connect("raspberries.db", timeout=10)  # タイムアウトを設定してロックを避ける
+    conn.row_factory = sqlite3.Row  # 結果を辞書のように扱う
+    return conn
 
 # 温度取得関数（リモートの Raspberry Pi の温度を取得）
 def get_remote_temperature(host, username, password, timeout=10):
@@ -53,16 +42,6 @@ def get_remote_temperature(host, username, password, timeout=10):
         logging.error(f"Failed to get temperature from {host}: {str(e)}")
         return None
 
-# データベース接続の作成
-def create_connection():
-    """
-    データベース接続を作成して返す
-    """
-    conn = sqlite3.connect("raspberries.db")
-    return conn
-
-import datetime
-
 def log_temperature(conn, cursor):
     """
     データベース内の Raspberry Pi 情報に基づいて温度を取得し、記録する。
@@ -81,7 +60,7 @@ def log_temperature(conn, cursor):
                 # 取得した温度と現在時刻をデータベースに保存
                 timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 cursor.execute(
-                    "INSERT INTO temperature_logs (raspberry_id, temperature, timestamp) VALUES (?, ?, ?)",
+                    "INSERT INTO cpu_temperature_logs (raspberry_id, cpu_temperature, timestamp) VALUES (?, ?, ?)",
                     (id, temperature, timestamp),
                 )
             else:
@@ -91,31 +70,118 @@ def log_temperature(conn, cursor):
 
     conn.commit()
 
+def get_remote_cpu_usage(host, username, password, timeout=10):
+    try:
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-# 一定間隔で温度を記録
-def log_temperature_periodically(interval):
+        logging.info(f"Connecting to {host}...")
+        client.connect(hostname=host, username=username, password=password, timeout=timeout)
+
+        # top コマンドの出力を取得
+        stdin, stdout, stderr = client.exec_command("top -bn1 | grep 'Cpu(s)'")
+        output = stdout.read().decode('utf-8').strip()
+
+        client.close()
+
+        # 出力をログに記録して、形式を確認
+        logging.info(f"Output from top command: {output}")
+
+        if not output:  # 出力が空であった場合のエラーハンドリング
+            logging.error(f"Empty output received from {host}")
+            return None
+
+        # 出力例: '%Cpu(s): 94.3 us,  5.7 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st'
+        cpu_info = output.split(",")
+
+        logging.info(f"CPU info split: {cpu_info}")  # 各項目がどう分割されているかログに出力
+
+        cpu_usage = 0.0
+        # 最初の項目の 'us' を取り出して処理
+        first_item = cpu_info[0].split()
+        if len(first_item) >= 3 and first_item[2] == 'us':
+            usage = float(first_item[1].replace("%", ""))
+            logging.info(f"Adding {usage} for us")
+            cpu_usage += usage
+        
+        # 残りの項目を処理
+        for item in cpu_info[1:]:
+            parts = item.split()
+            logging.info(f"Parsing item: {parts}")  # 各項目の詳細をログに出力
+
+            try:
+                # 'sy', 'ni', 'wa', 'hi', 'si' の部分を集計
+                if len(parts) >= 2:
+                    usage_type = parts[1]  # 例えば 'us', 'sy' など
+                    if usage_type in ['sy', 'ni', 'wa', 'hi', 'si']:
+                        usage = float(parts[0].replace("%", ""))
+                        logging.info(f"Adding {usage} for {usage_type}")
+                        cpu_usage += usage
+            except Exception as e:
+                logging.error(f"Error parsing item '{item}' from CPU info: {e}")
+        
+        return cpu_usage
+
+    except Exception as e:
+        logging.error(f"Failed to get CPU usage from {host}: {str(e)}")
+        return None
+
+
+
+
+
+
+
+def log_cpu_usage(conn, cursor):
     """
-    一定間隔で温度を記録
+    データベース内の Raspberry Pi 情報に基づいて CPU 使用率を取得し、記録する。
     """
-    while True:  # ここで無限ループにする
+    # Raspberry Pi の情報を取得
+    cursor.execute("SELECT id, ip_address FROM raspberries")
+    raspberries = cursor.fetchall()
+
+    for raspberry in raspberries:
+        id, ip_address = raspberry
+        try:
+            # リモートの CPU 使用率を取得
+            cpu_usage = get_remote_cpu_usage(ip_address, "ubuntu", "ubuntu")
+
+            if cpu_usage is not None:
+                # 取得した CPU 使用率と現在時刻をデータベースに保存
+                timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                cursor.execute(
+                    "INSERT INTO cpu_usage_logs (raspberry_id, cpu_usage, timestamp) VALUES (?, ?, ?)",
+                    (id, cpu_usage, timestamp),
+                )
+            else:
+                logging.error(f"Failed to get CPU usage for Raspberry Pi {id}")
+
+        except Exception as e:
+            logging.error(f"Failed to log CPU usage for Raspberry Pi {id}: {str(e)}")
+
+    conn.commit()
+
+
+# 温度と CPU 使用率を一定間隔で記録
+def log_periodically(interval):
+    """
+    一定間隔で温度と CPU 使用率を記録
+    """
+    while True:  # 無限ループ
         try:
             # データベース接続とカーソルの作成
             conn = create_connection()
             cursor = conn.cursor()
 
             log_temperature(conn, cursor)  # 温度を記録
+            log_cpu_usage(conn, cursor)  # CPU 使用率を記録
 
             conn.close()  # データベース接続を閉じる
         except Exception as e:
-            logging.error(f"Error logging temperature: {e}")
+            logging.error(f"Error logging temperature or CPU usage: {e}")
         time.sleep(interval)
 
+# 定期的に温度とCPU使用率を記録
+logging_thread = threading.Thread(target=log_periodically, args=(60,))
+logging_thread.start()
 
-
-
-# 温度記録を停止
-def stop_logging():
-    """
-    温度記録を停止
-    """
-    stop_event.set()
