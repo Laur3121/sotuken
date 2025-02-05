@@ -143,25 +143,28 @@ def dashboard():
     return render_template("dashboard.html", raspberries=raspberries)
 
 
-
 @main.route("/add_raspi", methods=["GET", "POST"])
 def add_raspi():
     if request.method == "POST":
         name = request.form.get("name")
         ip_address = request.form.get("ip_address")
+        location = request.form.get("location")  # 位置情報を取得
 
-        # ip_addressがNoneでないことを確認
         if not name or not ip_address:
             return "Name and IP address are required!", 400
 
         conn = sqlite3.connect('raspberries.db')
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO raspberries (name, ip_address, status) VALUES (?, ?, ?)", (name, ip_address, "Active"))
+        cursor.execute(
+            "INSERT INTO raspberries (name, ip_address, status, location) VALUES (?, ?, ?, ?)", 
+            (name, ip_address, "Active", location)  # location を追加
+        )
         conn.commit()
         conn.close()
         return redirect("/")
 
     return render_template("add_edit.html", raspi=None)
+
 
 # Raspberry Pi の編集（データ更新）
 @main.route('/edit_raspi/<int:id>', methods=["GET", "POST"])
@@ -284,43 +287,55 @@ def details(id):
     conn.close()
     return render_template("details.html", logs=temperature_logs)
 
+import re
+
+import psutil
+
 @main.route('/grid_dashboard')
 def grid_dashboard():
     conn = sqlite3.connect('raspberries.db')
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    # Raspberry Pi情報を取得
     cursor.execute('''
     SELECT r.id, r.name, r.ip_address,
            (SELECT temperature FROM temperature_logs WHERE raspberry_id = r.id ORDER BY timestamp DESC LIMIT 1) AS latest_temp,
-           r.status
+           r.status, r.location
     FROM raspberries r
     ''')
     raspberries = cursor.fetchall()
 
     grid_data = []
     for raspi in raspberries:
-        ip_address = raspi[2]
-        # SSHで情報を取得（ユーザー名とパスワードは環境変数や設定ファイルで管理することを推奨）
-        cpu_usage = get_cpu_usage(ip_address, "ubuntu", "ubuntu")
-        docker_containers = get_docker_containers(ip_address, "ubuntu", "ubuntu")
+        location = raspi['location']
+        if location:
+            match = re.search(r'x(\d+)y(\d+)', location)
+            if match:
+                location_x = int(match.group(1))
+                location_y = int(match.group(2))
+            else:
+                location_x = 1
+                location_y = 1
+        else:
+            location_x = 1
+            location_y = 1
+
+        # CPU使用率をリアルタイムで取得 (ここでは全体のCPU使用率)
+        cpu_usage = psutil.cpu_percent(interval=1)
 
         grid_data.append({
-            'id': raspi[0],
-            'name': raspi[1],
-            'ip_address': raspi[2],
-            'temperature': raspi[3],
-            'status': raspi[4],
-            'cpu_usage': cpu_usage,
-            'docker_containers': docker_containers
+            "id": raspi['id'],
+            "name": raspi['name'],
+            "ip_address": raspi['ip_address'],
+            "temperature": raspi['latest_temp'],
+            "cpu_usage": f"{cpu_usage} %",
+            "docker_containers": "-",  # ここもデータ取得可能なら変更
+            "location_x": location_x,
+            "location_y": location_y
         })
 
     conn.close()
     return render_template('grid_dashboard.html', grid_data=grid_data)
-
-
-
-
 
 
 

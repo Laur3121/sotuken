@@ -7,7 +7,8 @@
     <style>
         .grid-container {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(5, 1fr); /* 5列 */
+            grid-template-rows: repeat(4, 1fr);   /* 4行 */
             gap: 10px;
             margin: 20px;
         }
@@ -15,21 +16,60 @@
             border: 1px solid #ccc;
             padding: 10px;
             text-align: center;
+            position: relative;
+            background-color: #f9f9f9;
+        }
+        .delete-btn {
+            background-color: red;
+            color: white;
+            border: none;
+            padding: 5px;
+            cursor: pointer;
+            position: absolute;
+            top: 5px;
+            right: 5px;
+        }
+        .add-btn {
+            background-color: green;
+            color: white;
+            border: none;
+            padding: 10px;
+            margin: 20px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
     <h1>Raspberry Pi Grid Dashboard</h1>
+    <button class="add-btn" onclick="location.href='/add_raspi'">Add Raspberry Pi</button>
     <div class="grid-container">
         {% for raspi in grid_data %}
-        <div class="grid-item">
+        <div class="grid-item" style="grid-column: {{ raspi.location_x }}; grid-row: {{ raspi.location_y }};">
+            <button class="delete-btn" onclick="deleteRaspi('{{ raspi.id }}')">×</button>
             <h3>{{ raspi.name }}</h3>
             <p>IP: {{ raspi.ip_address }}</p>
+            <p>Location: x{{ raspi.location_x }} y{{ raspi.location_y }}</p>
             <p>Temperature: {{ raspi.temperature }} °C</p>
             <p>CPU Usage: {{ raspi.cpu_usage }}</p>
             <p>Docker Containers: {{ raspi.docker_containers }}</p>
         </div>
         {% endfor %}
     </div>
+
+    <script>
+        function deleteRaspi(id) {
+            if (confirm("Are you sure you want to delete this Raspberry Pi?")) {
+                fetch(`/delete_raspi/${id}`, { method: "DELETE" })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert("Failed to delete Raspberry Pi.");
+                        }
+                    });
+            }
+        }
+    </script>
 </body>
 </html>
