@@ -22,15 +22,16 @@
             <table>
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Name</th>
-                        <th>IP Address</th>
-                        <th>Status</th>
+                        <th><a href="{{ url_for('main.dashboard', sort='id') }}">ID</a></th>
+                        <th><a href="{{ url_for('main.dashboard', sort='name') }}">Name</a></th>
+                        <th><a href="{{ url_for('main.dashboard', sort='ip') }}">IP Address</a></th>
+                        <th><a href="{{ url_for('main.dashboard', sort='status') }}">Status</a></th>
                         <th>Current Temperature (°C)</th>
-                        <th>Location</th> <!-- 位置情報の列 -->
+                        <th>Location</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
+                
                 <tbody>
                     {% for raspi in raspberries %}
                     <tr>

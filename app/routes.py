@@ -146,22 +146,37 @@ def reset_database():
 
 @main.route("/")
 def dashboard():
+    # ソートパラメータを取得（デフォルトはID順）
+    sort_order = request.args.get('sort', 'id')
+
+    # ソート条件に応じてORDER BYを設定
+    order_by = "r.id"  # デフォルト
+    if sort_order == 'ip':
+        order_by = "r.ip_address"
+    elif sort_order == 'name':
+        order_by = "r.name"
+    elif sort_order == 'status':
+        order_by = "r.status"
+
     # データベース接続
     conn = sqlite3.connect('raspberries.db')
     cursor = conn.cursor()
 
-    # 最新の温度を取得するクエリ
-    cursor.execute('''
+    # クエリにORDER BYを追加
+    query = f'''
     SELECT r.id, r.name, r.ip_address, r.status, r.location,
-           (SELECT temperature FROM temperature_logs WHERE raspberry_id = r.id ORDER BY timestamp DESC LIMIT 1) AS latest_temp
+           (SELECT cpu_temperature FROM cpu_temperature_logs WHERE raspberry_id = r.id ORDER BY timestamp DESC LIMIT 1) AS latest_temp
     FROM raspberries r
-    ''')
+    ORDER BY {order_by}
+    '''
+    cursor.execute(query)
     raspberries = cursor.fetchall()
 
     conn.close()
 
     # ダッシュボードに温度情報を含めて返す
     return render_template("dashboard.html", raspberries=raspberries)
+
 
 
 @main.route("/add_raspi", methods=["GET", "POST"])
@@ -320,7 +335,7 @@ def grid_dashboard():
 
     cursor.execute('''
     SELECT r.id, r.name, r.ip_address,
-           (SELECT temperature FROM temperature_logs WHERE raspberry_id = r.id ORDER BY timestamp DESC LIMIT 1) AS latest_temp,
+           (SELECT cpu_temperature FROM cpu_temperature_logs WHERE raspberry_id = r.id ORDER BY timestamp DESC LIMIT 1) AS latest_temp,
            (SELECT cpu_usage FROM cpu_usage_logs WHERE raspberry_id = r.id ORDER BY timestamp DESC LIMIT 1) AS latest_cpu_usage,
            r.status, r.location
     FROM raspberries r

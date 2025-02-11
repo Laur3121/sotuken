@@ -16,11 +16,11 @@ app = create_app()  # create_app() 関数を使ってアプリケーションを
 stop_event = threading.Event()
 
 if __name__ == "__main__":
-    # 温度記録を一定間隔で開始する
+    # 記録を一定間隔で開始する
     logging.info("Starting temperature logging...")
 
     # 温度記録用のスレッドを開始
-    temperature_thread = threading.Thread(target=log_periodically, args=(60,))
+    temperature_thread = threading.Thread(target=log_periodically, args=(30,))
     temperature_thread.start()
 
 
