@@ -29,6 +29,16 @@
             top: 5px;
             right: 5px;
         }
+        ul {
+        padding-left: 20px;
+        list-style-type: disc;
+        }
+        li {
+        word-wrap: break-word; /* 長い単語があれば折り返す */
+        max-width: 150px; /* リストアイテムの最大幅を設定 */
+        overflow: hidden;  /* 横に溢れないようにする */
+        text-overflow: ellipsis; /* 長いテキストを省略記号にする */
+        }
         .add-btn {
             background-color: green;
             color: white;
@@ -53,15 +63,13 @@
             <p>CPU Usage: {{ raspi.cpu_usage }}%</p>
             <p>Docker Containers:
                 {% if raspi.docker_containers %}
-                    <ul>
-                        {% for container in raspi.docker_containers %}
-                            <li>{{ container }}</li>
-                        {% endfor %}
-                    </ul>
+                    <p>{{ raspi.docker_containers | replace(" ", "<br>") | safe }}</p>
                 {% else %}
-                    No containers running
+                    <p>No containers running</p>
                 {% endif %}
             </p>
+            
+            
         </div>
         {% endfor %}
     </div>
