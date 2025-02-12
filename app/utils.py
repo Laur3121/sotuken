@@ -146,6 +146,7 @@ def log_cpu_usage(conn, cursor):
     """
     # Raspberry Pi の情報を取得
     cursor.execute("SELECT id, ip_address FROM raspberries")
+    
     raspberries = cursor.fetchall()
 
     for raspberry in raspberries:
@@ -179,7 +180,9 @@ def log_periodically(interval):
         try:
             # データベース接続とカーソルの作成
             conn = create_connection()
+            conn.execute('PRAGMA busy_timeout = 10000')
             cursor = conn.cursor()
+            
 
             log_temperature(conn, cursor)  # 温度を記録
             log_cpu_usage(conn, cursor)  # CPU 使用率を記録
@@ -192,6 +195,6 @@ def log_periodically(interval):
         time.sleep(interval)
 
 # 定期的に温度とCPU使用率を記録
-logging_thread = threading.Thread(target=log_periodically, args=(60,))
-logging_thread.start()
+#logging_thread = threading.Thread(target=log_periodically, args=(60,))
+#logging_thread.start()
 

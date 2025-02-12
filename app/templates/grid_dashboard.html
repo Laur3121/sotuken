@@ -60,7 +60,7 @@
             <p>IP: {{ raspi.ip_address }}</p>
             <p>Location: x{{ raspi.location_x }} y{{ raspi.location_y }}</p>
             <p>Temperature: {{ raspi.temperature }} °C</p>
-            <p>CPU Usage: {{ raspi.cpu_usage }}%</p>
+            <p>CPU Usage: {{ '%.1f' % raspi.cpu_usage }}%</p>
             <p>Docker Containers:
                 {% if raspi.docker_containers %}
                     <p>{{ raspi.docker_containers | replace(" ", "<br>") | safe }}</p>

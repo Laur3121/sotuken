@@ -205,8 +205,9 @@ def add_raspi():
             return "Name and IP address are required!", 400
 
         conn = sqlite3.connect('raspberries.db')
+        conn.execute('PRAGMA busy_timeout = 20000')
         cursor = conn.cursor()
-        conn.execute("PRAGMA journal_mode=WAL;")
+        
 
         cursor.execute(
             "INSERT INTO raspberries (name, ip_address, status, location) VALUES (?, ?, ?, ?)", 

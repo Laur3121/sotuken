@@ -92,7 +92,7 @@ for row in rows:
 # 重み
 w_t = 1  # 温度の重み
 w_u = 1  # CPU使用率の重み
-w_d = 1  # 位置の重み
+w_d = 1000  # 位置の重み
 source_ip = None
 container_name = None
 # マイグレーション対象 Raspberry Pi を選ぶ
