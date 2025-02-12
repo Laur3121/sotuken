@@ -48,24 +48,39 @@ WHERE r.status = 'Active';
 cursor.execute(query)
 rows = cursor.fetchall()
 
-# 70度を超える場合のスコア計算
+# 評価する Raspberry Pi のデータを格納
+raspberries = []
 for row in rows:
-    temperature = row['latest_temp']
-    if temperature > 70:
-        # サンプルとして、重みを指定
-        w_t = 1  # 温度の重み
-        w_u = 0.5  # CPU使用率の重み
-        w_d = 0.2  # 位置情報の重み
+    raspi = {
+        'id': row[0],
+        'name': row[1],
+        'location': row[2],
+        'temperature': row[3],
+        'cpu_usage': row[4]
+    }
+    raspberries.append(raspi)
 
-        # 同じ場所のデバイスと比較するために、同じ温度を持つ他のデバイスを探してスコア計算
-        for compare_row in rows:
-            if row['id'] != compare_row['id']:
-                score = evaluate_migration(
-                    {'temperature': row['latest_temp'], 'cpu_usage': row['latest_cpu_usage'], 'location': row['location']},
-                    {'temperature': compare_row['latest_temp'], 'cpu_usage': compare_row['latest_cpu_usage'], 'location': compare_row['location']},
-                    w_t, w_u, w_d
-                )
-                print(f"Score for migration from {row['name']} to {compare_row['name']}: {score}")
+# 重み
+w_t = 1  # 温度の重み
+w_u = 1  # CPU使用率の重み
+w_d = 1  # 位置の重み
 
-# 接続を閉じる
-conn.close()
+# マイグレーション対象 Raspberry Pi を選ぶ
+migration_scores = []
+for raspi_x in raspberries:
+    if raspi_x['temperature'] > 70:  # 70度を超える場合にスコアを計算
+        for raspi_y in raspberries:
+            if raspi_x['id'] != raspi_y['id']:  # 同じ Raspberry Pi への移動を避ける
+                score = evaluate_migration(raspi_x, raspi_y, w_t, w_u, w_d)
+                migration_scores.append({'from': raspi_x['name'], 'to': raspi_y['name'], 'score': score})
+
+# 全てのスコアを表示
+for migration in migration_scores:
+    print(f"Score for migration from {migration['from']} to {migration['to']}: {migration['score']}")
+
+# スコアが一番高いものを選ぶ
+if migration_scores:
+    best_migration = max(migration_scores, key=lambda x: x['score'])
+    print(f"\nBest migration: {best_migration['from']} -> {best_migration['to']} with score: {best_migration['score']}")
+else:
+    print("\nNo Raspberry Pi exceeded 70°C.")
