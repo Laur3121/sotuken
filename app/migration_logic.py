@@ -132,28 +132,19 @@ if migration_scores:
     
     print(container_name)
     
-    try:
-        # SSH を使ってマイグレーション処理を実行
-        subprocess.run(['ssh', source_ip, f'docker stop {container_name}'], check=True)
-        
-        # コンテナのイメージを保存して圧縮
-        subprocess.run(['ssh', source_ip, f'docker commit {container_name} {container_name}_image'], check=True)
-        subprocess.run(['ssh', source_ip, f'docker save {container_name}_image | gzip > {container_name}.tar.gz'], check=True)
-        
-        # コンテナを削除（削除は保存後に行う）
-        subprocess.run(['ssh', source_ip, f'docker rm {container_name}'], check=True)
-        
-        # ファイルを転送
-        subprocess.run(['scp', f'{source_ip}:{container_name}.tar.gz', f'{destination_ip}:~'], check=True)
-        
-        # 新しいホストにイメージをロード
-        subprocess.run(['ssh', destination_ip, f'docker load < {container_name}.tar.gz'], check=True)
-        
-        # 新しいホストでコンテナを再起動
-        subprocess.run(['ssh', destination_ip, f'docker run -d --name {container_name} {container_name}_image'], check=True)
-        
-        print(f"Successfully migrated container from {source_raspberry['name']} to {best_raspberry['name']}")
-    except subprocess.CalledProcessError as e:
-        print(f"An error occurred during migration: {e}")
+    password = 'ubuntu'  # 実際のパスワードに置き換えてください
+
+try:
+    subprocess.run(['sshpass', '-p', password, 'ssh', source_ip, f'docker stop {container_name}'], check=True)
+    subprocess.run(['sshpass', '-p', password, 'ssh', source_ip, f'docker commit {container_name} {container_name}_image'], check=True)
+    subprocess.run(['sshpass', '-p', password, 'ssh', source_ip, f'docker save {container_name}_image | gzip > {container_name}.tar.gz'], check=True)
+    subprocess.run(['sshpass', '-p', password, 'ssh', source_ip, f'docker rm {container_name}'], check=True)
+    subprocess.run(['sshpass', '-p', password, 'scp', f'{source_ip}:{container_name}.tar.gz', f'{destination_ip}:~'], check=True)
+    subprocess.run(['sshpass', '-p', password, 'ssh', destination_ip, f'docker load < {container_name}.tar.gz'], check=True)
+    subprocess.run(['sshpass', '-p', password, 'ssh', destination_ip, f'docker run -d --name {container_name} {container_name}_image'], check=True)
+    
+    print(f"Successfully migrated container from {source_raspberry['name']} to {best_raspberry['name']}")
+except subprocess.CalledProcessError as e:
+    print(f"Error: {e}")
 else:
     print("No suitable migration target found.")

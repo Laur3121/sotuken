@@ -10,6 +10,7 @@ import threading
 
 
 
+
 # ログの基本設定
 logging.basicConfig(level=logging.DEBUG)
 

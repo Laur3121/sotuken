@@ -4,6 +4,7 @@ import time
 import paramiko
 import threading
 import datetime
+import subprocess
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)
@@ -65,6 +66,13 @@ def log_temperature(conn, cursor):
                 )
             else:
                 logging.error(f"Failed to get temperature for Raspberry Pi {id}")
+
+            # 温度が70度を超えたらmigration_logic.pyを実行
+            if temperature > 70:
+                logging.info(f"Temperature is {temperature}°C, exceeding threshold. Triggering migration logic.")
+                subprocess.run(["python3", "./app/migration_logic.py"])
+
+            
         except Exception as e:
             logging.error(f"Failed to log temperature for Raspberry Pi {id}: {str(e)}")
 
