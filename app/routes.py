@@ -25,6 +25,9 @@ def get_latest_temperatures():
     conn = sqlite3.connect("raspberries.db")
     cursor = conn.cursor()
 
+    conn.execute("PRAGMA journal_mode=WAL;")
+
+
     # 最新の温度データを取得
     cursor.execute("""
         SELECT r.ip_address, t.temperature, t.timestamp
@@ -34,6 +37,7 @@ def get_latest_temperatures():
         LIMIT 5
     """)
     temperatures = cursor.fetchall()
+    conn.commit()
     conn.close()
 
     return temperatures
@@ -49,6 +53,9 @@ def get_cpu_usage(raspi_id):
     conn = create_connection()
     cursor = conn.cursor()
 
+    conn.execute("PRAGMA journal_mode=WAL;")
+
+
     # 最新の CPU 使用率を取得
     cursor.execute("""
         SELECT cpu_temperature, timestamp FROM cpu_temperature_logs
@@ -57,6 +64,7 @@ def get_cpu_usage(raspi_id):
         LIMIT 1
     """, (raspi_id,))
     cpu_data = cursor.fetchone()
+    conn.commit()
     conn.close()
 
     if cpu_data:
@@ -83,6 +91,8 @@ def get_docker_containers(ip_address, username, password):
 def init_db():
     conn = sqlite3.connect("raspberries.db")
     cursor = conn.cursor()
+    conn.execute("PRAGMA journal_mode=WAL;")
+
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS raspberries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -116,6 +126,8 @@ def reset_database():
     # 新しいデータベースを作成
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
+    conn.execute("PRAGMA journal_mode=WAL;")
+
 
     # テーブルの作成
     cursor.execute('''
@@ -162,6 +174,8 @@ def dashboard():
     # データベース接続
     conn = sqlite3.connect('raspberries.db')
     cursor = conn.cursor()
+    conn.execute("PRAGMA journal_mode=WAL;")
+
 
     # クエリにORDER BYを追加
     query = f'''
@@ -172,7 +186,7 @@ def dashboard():
     '''
     cursor.execute(query)
     raspberries = cursor.fetchall()
-
+    conn.commit()
     conn.close()
 
     # ダッシュボードに温度情報を含めて返す
@@ -192,6 +206,8 @@ def add_raspi():
 
         conn = sqlite3.connect('raspberries.db')
         cursor = conn.cursor()
+        conn.execute("PRAGMA journal_mode=WAL;")
+
         cursor.execute(
             "INSERT INTO raspberries (name, ip_address, status, location) VALUES (?, ?, ?, ?)", 
             (name, ip_address, "Active", location)  # location を追加
@@ -208,6 +224,8 @@ def add_raspi():
 def edit_raspi(id):
     conn = sqlite3.connect('raspberries.db')
     cursor = conn.cursor()
+    conn.execute("PRAGMA journal_mode=WAL;")
+
 
     if request.method == "POST":
         # フォームから送信されたデータを取得
@@ -226,6 +244,7 @@ def edit_raspi(id):
     # GETリクエスト時：編集対象のデータを表示
     cursor.execute("SELECT * FROM raspberries WHERE id=?", (id,))
     raspi = cursor.fetchone()
+    conn.commit()
     conn.close()
 
     return render_template('edit_raspi.html', raspi=raspi)  # 編集フォームにデータを渡して表示
@@ -235,6 +254,8 @@ def edit_raspi(id):
 def delete_raspi(id):
     conn = sqlite3.connect('raspberries.db')
     cursor = conn.cursor()
+    conn.execute("PRAGMA journal_mode=WAL;")
+
     cursor.execute("DELETE FROM raspberries WHERE id = ?", (id,))
     conn.commit()
     conn.close()
@@ -255,8 +276,11 @@ def initialize_database():
 def get_raspberries():
     conn = sqlite3.connect('raspberries.db')
     cursor = conn.cursor()
+    conn.execute("PRAGMA journal_mode=WAL;")
+
     cursor.execute("SELECT * FROM raspberries")
     raspberries = cursor.fetchall()
+    conn.commit()
     conn.close()
     return jsonify([{"id": row[0], "name": row[1], "ip_address": row[2], "status": row[3]} for row in raspberries])
 
@@ -266,9 +290,12 @@ def add_raspberry_api():
     data = request.json
     conn = sqlite3.connect('raspberries.db')
     cursor = conn.cursor()
+    conn.execute("PRAGMA journal_mode=WAL;")
+
     cursor.execute("INSERT INTO raspberries (name, ip_address, status) VALUES (?, ?, ?)", (data["name"], data["ip_address"], "Active"))
     conn.commit()
     new_id = cursor.lastrowid
+    conn.commit()
     conn.close()
     return jsonify({"id": new_id, **data, "status": "Active"})
 
@@ -279,6 +306,8 @@ def modify_raspberry_api(id):
         data = request.json
         conn = sqlite3.connect('raspberries.db')
         cursor = conn.cursor()
+        conn.execute("PRAGMA journal_mode=WAL;")
+
         cursor.execute("UPDATE raspberries SET name=?, ip_address=?, status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", 
                        (data["name"], data["ip_address"], data["status"], id))
         conn.commit()
@@ -287,6 +316,8 @@ def modify_raspberry_api(id):
     elif request.method == "DELETE":
         conn = sqlite3.connect('raspberries.db')
         cursor = conn.cursor()
+        conn.execute("PRAGMA journal_mode=WAL;")
+
         cursor.execute("DELETE FROM raspberries WHERE id=?", (id,))
         conn.commit()
         conn.close()
@@ -299,6 +330,8 @@ def update_temperature(id):
     
     conn = sqlite3.connect('raspberries.db')
     cursor = conn.cursor()
+    conn.execute("PRAGMA journal_mode=WAL;")
+
     
     # 現在の温度を更新
     cursor.execute("UPDATE raspberries SET current_temperature=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", (temperature, id))
@@ -314,6 +347,8 @@ def update_temperature(id):
 def details(id):
     conn = sqlite3.connect('raspberries.db')
     cursor = conn.cursor()
+    conn.execute("PRAGMA journal_mode=WAL;")
+
     cursor.execute('''
     SELECT logged_at, temperature
     FROM temperature_logs
@@ -321,6 +356,7 @@ def details(id):
     ORDER BY logged_at DESC
     ''', (id,))
     temperature_logs = cursor.fetchall()
+    conn.commit()
     conn.close()
     return render_template("details.html", logs=temperature_logs)
 
@@ -333,6 +369,8 @@ def grid_dashboard():
     conn = sqlite3.connect('raspberries.db')
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    conn.execute("PRAGMA journal_mode=WAL;")
+
 
     cursor.execute('''
     SELECT r.id, r.name, r.ip_address,
@@ -376,6 +414,7 @@ def grid_dashboard():
             "location_y": location_y
         })
 
+    conn.commit()
     conn.close()
     return render_template('grid_dashboard.html', grid_data=grid_data)
 import sqlite3
@@ -390,6 +429,8 @@ w_d = 1  # 位置の重み
 def get_temperature(raspberry_id):
     conn = sqlite3.connect("raspberries.db")
     cursor = conn.cursor()
+    conn.execute("PRAGMA journal_mode=WAL;")
+
 
     cursor.execute("""
         SELECT temperature
@@ -400,6 +441,7 @@ def get_temperature(raspberry_id):
     """, (raspberry_id,))
     
     result = cursor.fetchone()
+    conn.commit()
     conn.close()
 
     if result:
@@ -412,6 +454,8 @@ def get_temperature(raspberry_id):
 def get_location(raspberry_id):
     conn = sqlite3.connect("raspberries.db")
     cursor = conn.cursor()
+    conn.execute("PRAGMA journal_mode=WAL;")
+
 
     cursor.execute("""
         SELECT location
@@ -420,6 +464,7 @@ def get_location(raspberry_id):
     """, (raspberry_id,))
     
     result = cursor.fetchone()
+    conn.commit()
     conn.close()
 
     if result:
@@ -473,6 +518,8 @@ def perform_migration():
     # マイグレーション先 Raspberry Pi の IP をデータベースから取得
     conn = sqlite3.connect("raspberries.db")
     cursor = conn.cursor()
+    conn.execute("PRAGMA journal_mode=WAL;")
+
 
     cursor.execute("""
         SELECT id, ip_address FROM raspberries WHERE id != ?
@@ -487,6 +534,7 @@ def perform_migration():
             'cpu_usage': get_cpu_usage(row[1], 'ubuntu', 'password'),
             'location': get_location(row[0])
         })
+    conn.commit()
     conn.close()
 
     best_score = None

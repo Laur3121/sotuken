@@ -26,7 +26,7 @@ def get_remote_temperature(host, username, password, timeout=10):
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
         # SSH接続
-        logging.info(f"Connecting to {host}...")
+        #logging.info(f"Connecting to {host}...")
         client.connect(hostname=host, username=username, password=password, timeout=timeout)
 
         # vcgencmdコマンドを実行して温度を取得
@@ -83,7 +83,7 @@ def get_remote_cpu_usage(host, username, password, timeout=10):
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-        logging.info(f"Connecting to {host}...")
+        #logging.info(f"Connecting to {host}...")
         client.connect(hostname=host, username=username, password=password, timeout=timeout)
 
         # top コマンドの出力を取得
@@ -93,7 +93,7 @@ def get_remote_cpu_usage(host, username, password, timeout=10):
         client.close()
 
         # 出力をログに記録して、形式を確認
-        logging.info(f"Output from top command: {output}")
+        #logging.info(f"Output from top command: {output}")
 
         if not output:  # 出力が空であった場合のエラーハンドリング
             logging.error(f"Empty output received from {host}")
@@ -102,20 +102,20 @@ def get_remote_cpu_usage(host, username, password, timeout=10):
         # 出力例: '%Cpu(s): 94.3 us,  5.7 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st'
         cpu_info = output.split(",")
 
-        logging.info(f"CPU info split: {cpu_info}")  # 各項目がどう分割されているかログに出力
+        #logging.info(f"CPU info split: {cpu_info}")  # 各項目がどう分割されているかログに出力
 
         cpu_usage = 0.0
         # 最初の項目の 'us' を取り出して処理
         first_item = cpu_info[0].split()
         if len(first_item) >= 3 and first_item[2] == 'us':
             usage = float(first_item[1].replace("%", ""))
-            logging.info(f"Adding {usage} for us")
+            #logging.info(f"Adding {usage} for us")
             cpu_usage += usage
         
         # 残りの項目を処理
         for item in cpu_info[1:]:
             parts = item.split()
-            logging.info(f"Parsing item: {parts}")  # 各項目の詳細をログに出力
+            #logging.info(f"Parsing item: {parts}")  
 
             try:
                 # 'sy', 'ni', 'wa', 'hi', 'si' の部分を集計
@@ -123,7 +123,7 @@ def get_remote_cpu_usage(host, username, password, timeout=10):
                     usage_type = parts[1]  # 例えば 'us', 'sy' など
                     if usage_type in ['sy', 'ni', 'wa', 'hi', 'si']:
                         usage = float(parts[0].replace("%", ""))
-                        logging.info(f"Adding {usage} for {usage_type}")
+                        #ogging.info(f"Adding {usage} for {usage_type}")
                         cpu_usage += usage
             except Exception as e:
                 logging.error(f"Error parsing item '{item}' from CPU info: {e}")
@@ -183,6 +183,8 @@ def log_periodically(interval):
 
             log_temperature(conn, cursor)  # 温度を記録
             log_cpu_usage(conn, cursor)  # CPU 使用率を記録
+
+            conn.commit()
 
             conn.close()  # データベース接続を閉じる
         except Exception as e:

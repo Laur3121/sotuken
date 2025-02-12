@@ -59,6 +59,7 @@ def log_temperature_periodically(interval=60):
             # Raspberry Pi の情報を取得
             cursor.execute("SELECT id, ip_address FROM raspberries")
             raspberries = cursor.fetchall()
+            conn.commit()
             conn.close()
 
             # ThreadPoolExecutorを使って並列で温度を取得

@@ -59,6 +59,7 @@ def get_docker_container(ip_address, username, password):
 conn = sqlite3.connect('raspberries.db')
 conn.row_factory = sqlite3.Row  # 行を辞書型として取得
 cursor = conn.cursor()
+conn.execute("PRAGMA journal_mode=WAL;")
 
 # 最新の温度とCPU使用率を取得するSQLクエリ
 query = """
@@ -72,6 +73,8 @@ WHERE r.status = 'Active';
 # クエリを実行
 cursor.execute(query)
 rows = cursor.fetchall()
+conn.commit()
+conn.close()
 
 # 評価する Raspberry Pi のデータを格納
 raspberries = []
@@ -90,7 +93,8 @@ for row in rows:
 w_t = 1  # 温度の重み
 w_u = 1  # CPU使用率の重み
 w_d = 1  # 位置の重み
-
+source_ip = None
+container_name = None
 # マイグレーション対象 Raspberry Pi を選ぶ
 migration_scores = []
 for raspi_x in raspberries:
@@ -132,19 +136,23 @@ if migration_scores:
     
     print(container_name)
     
-    password = 'ubuntu'  # 実際のパスワードに置き換えてください
+      
 
-try:
-    subprocess.run(['sshpass', '-p', password, 'ssh', source_ip, f'docker stop {container_name}'], check=True)
-    subprocess.run(['sshpass', '-p', password, 'ssh', source_ip, f'docker commit {container_name} {container_name}_image'], check=True)
-    subprocess.run(['sshpass', '-p', password, 'ssh', source_ip, f'docker save {container_name}_image | gzip > {container_name}.tar.gz'], check=True)
-    subprocess.run(['sshpass', '-p', password, 'ssh', source_ip, f'docker rm {container_name}'], check=True)
-    subprocess.run(['sshpass', '-p', password, 'scp', f'{source_ip}:{container_name}.tar.gz', f'{destination_ip}:~'], check=True)
-    subprocess.run(['sshpass', '-p', password, 'ssh', destination_ip, f'docker load < {container_name}.tar.gz'], check=True)
-    subprocess.run(['sshpass', '-p', password, 'ssh', destination_ip, f'docker run -d --name {container_name} {container_name}_image'], check=True)
-    
-    print(f"Successfully migrated container from {source_raspberry['name']} to {best_raspberry['name']}")
-except subprocess.CalledProcessError as e:
-    print(f"Error: {e}")
-else:
-    print("No suitable migration target found.")
+    try:
+        password = 'ubuntu'
+        subprocess.run(['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no', source_ip, f'docker stop {container_name}'], check=True)
+        subprocess.run(['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no', source_ip, f'docker commit {container_name} {container_name}_image'], check=True)
+        subprocess.run(['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no', source_ip, f'docker save {container_name}_image | gzip > {container_name}.tar.gz'], check=True)
+        subprocess.run(['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no', source_ip, f'docker rm {container_name}'], check=True)
+        # SSHpassを2回使う形でファイル転送
+        subprocess.run(['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no', source_ip, 
+                    f"sshpass -p {password} scp -o StrictHostKeyChecking=no {container_name}.tar.gz ubuntu@{destination_ip}:~/"], check=True)
+
+        subprocess.run(['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no', destination_ip, f'docker load < {container_name}.tar.gz'], check=True)
+        subprocess.run(['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no', destination_ip, f'docker run -d --name {container_name} {container_name}_image'], check=True)
+        
+        print(f"Successfully migrated container from {source_raspberry['name']} to {best_raspberry['name']}")
+    except subprocess.CalledProcessError as e:
+        print(f"Error: {e}")
+    else:
+        print("No suitable migration target found.")

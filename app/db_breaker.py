@@ -4,6 +4,9 @@ def init_db():
     conn = sqlite3.connect("raspberries.db")
     cursor = conn.cursor()
 
+    conn.execute("PRAGMA journal_mode=WAL;")
+
+
     # 既存テーブルを削除
     cursor.execute('DROP TABLE IF EXISTS raspberries')
     cursor.execute('DROP TABLE IF EXISTS temperature_logs')
