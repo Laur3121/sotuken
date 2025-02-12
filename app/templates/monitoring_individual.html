@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Raspberry Pi Individual Monitoring</title>
+</head>
+<body>
+    <h1>Raspberry Pi Individual Temperature Logs</h1>
+    {% for graph in graphs %}
+        <div style="margin-bottom: 30px;">{{ graph|safe }}</div>
+    {% endfor %}
+</body>
+</html>

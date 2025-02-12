@@ -7,6 +7,13 @@ import paramiko
 import time
 import datetime
 import threading
+import sqlite3
+import matplotlib.pyplot as plt
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+
+
 
 
 
@@ -418,144 +425,101 @@ def grid_dashboard():
     conn.commit()
     conn.close()
     return render_template('grid_dashboard.html', grid_data=grid_data)
-import sqlite3
-import logging
 
-# 重みを設定する
-w_t = 1  # 温度の重み
-w_u = 1  # CPU使用率の重み
-w_d = 1  # 位置の重み
 
-# 温度を取得する関数（データベースから）
-def get_temperature(raspberry_id):
-    conn = sqlite3.connect("raspberries.db")
+def get_temperature_and_cpu_usage():
+    conn = sqlite3.connect('raspberries.db')
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    conn.execute("PRAGMA journal_mode=WAL;")
 
+    # 温度データを取得
+    cursor.execute('''
+    SELECT r.id, r.name, r.ip_address,
+           (SELECT cpu_temperature FROM cpu_temperature_logs WHERE raspberry_id = r.id ORDER BY timestamp DESC LIMIT 1) AS latest_temp,
+           (SELECT timestamp FROM cpu_temperature_logs WHERE raspberry_id = r.id ORDER BY timestamp DESC LIMIT 1) AS timestamp_temp
+    FROM raspberries r
+    ''')
+    temperature_data = [dict(row) for row in cursor.fetchall()]
 
-    cursor.execute("""
-        SELECT temperature
-        FROM temperature_logs
-        WHERE raspberry_id = ?
-        ORDER BY timestamp DESC
-        LIMIT 1
-    """, (raspberry_id,))
-    
-    result = cursor.fetchone()
-    conn.commit()
+    # CPU 使用率データを取得
+    cursor.execute('''
+    SELECT r.id, r.name, r.ip_address,
+           (SELECT cpu_usage FROM cpu_usage_logs WHERE raspberry_id = r.id ORDER BY timestamp DESC LIMIT 1) AS latest_cpu_usage,
+           (SELECT timestamp FROM cpu_usage_logs WHERE raspberry_id = r.id ORDER BY timestamp DESC LIMIT 1) AS timestamp_cpu
+    FROM raspberries r
+    ''')
+    cpu_usage_data = [dict(row) for row in cursor.fetchall()]
+
     conn.close()
 
-    if result:
-        return result[0]
-    return None
+    # データをDataFrameに変換
+    temperature_df = pd.DataFrame(temperature_data)
+    cpu_usage_df = pd.DataFrame(cpu_usage_data)
+
+    return temperature_df, cpu_usage_df
+
+@main.route('/monitoring')
+def index():
+    temperature_df, _ = get_temperature_and_cpu_usage()
+
+    # Plotlyでグラフを作成
+    fig = px.bar(temperature_df, x="name", y="latest_temp", title="Raspberry Pi Temperature", labels={"name": "Raspberry Pi", "latest_temp": "Temperature (°C)"})
+    graph_html = fig.to_html(full_html=False)  # グラフをHTML形式に変換
+
+    return render_template('monitoring.html', graph_html=graph_html)
 
 
 
-# Raspberry Piの位置を取得する関数（データベースから）
-def get_location(raspberry_id):
-    conn = sqlite3.connect("raspberries.db")
+def get_temperature_logs():
+    conn = sqlite3.connect('raspberries.db')
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    conn.execute("PRAGMA journal_mode=WAL;")
 
-
-    cursor.execute("""
-        SELECT location
-        FROM raspberries
-        WHERE id = ?
-    """, (raspberry_id,))
-    
-    result = cursor.fetchone()
-    conn.commit()
+    # 温度ログを全て取得するSQLクエリ
+    cursor.execute('''
+    SELECT r.id AS raspberry, r.name, r.ip_address, t.cpu_temperature, t.timestamp 
+    FROM raspberries r
+    JOIN cpu_temperature_logs t ON r.id = t.raspberry_id
+    ORDER BY t.timestamp
+    ''')
+    rows = cursor.fetchall()
     conn.close()
 
-    if result:
-        return result[0]
-    return None
-
-# ユークリッド距離を計算する関数
-def euclidean_distance(x1, y1, x2, y2):
-    return abs(x1 - x2) + abs(y1 - y2)
-
-# 評価式を計算する関数
-def evaluate_migration(raspi_x, raspi_y, w_t, w_u, w_d):
-    # 温度の差
-    temp_diff = raspi_x['temperature'] - raspi_y['temperature']
-    
-    # CPU使用率の差
-    cpu_usage_x = raspi_x['cpu_usage']
-    cpu_usage_y = raspi_y['cpu_usage']
-    cpu_diff = (1 - cpu_usage_y / 100)
-    
-    # 位置の距離
-    location_x = raspi_x['location']
-    location_y = raspi_y['location']
-    if location_x and location_y:
-        match_x = re.search(r'x(\d+)y(\d+)', location_x)
-        match_y = re.search(r'x(\d+)y(\d+)', location_y)
-        if match_x and match_y:
-            x1, y1 = int(match_x.group(1)), int(match_x.group(2))
-            x2, y2 = int(match_y.group(1)), int(match_y.group(2))
-            location_diff = euclidean_distance(x1, y1, x2, y2)
-        else:
-            location_diff = 0
-    else:
-        location_diff = 0
-
-    # 評価式
-    score = (w_t * temp_diff) + (w_u * cpu_diff) + (w_d * location_diff)
-    return score
-
-# マイグレーションを実行する関数
-def perform_migration():
-    # Raspberry Pi x の情報
-    raspi_x = {
-        'id': 1,  # Raspberry Pi x の ID
-        'ip_address': '192.168.0.16',  # Raspberry Pi x の IPアドレス
-        'temperature': get_temperature(1),  # 最新温度
-        'cpu_usage': get_cpu_usage('192.168.0.16', 'ubuntu', 'ubuntu'),  # CPU使用率
-        'location': get_location(1)  # 位置
-    }
-
-    # マイグレーション先 Raspberry Pi の IP をデータベースから取得
-    conn = sqlite3.connect("raspberries.db")
-    cursor = conn.cursor()
-    conn.execute("PRAGMA journal_mode=WAL;")
+    # DataFrameに変換
+    df = pd.DataFrame(rows, columns=["raspberry", "name", "ip_address", "cpu_temperature", "timestamp"])
+    return df
 
 
-    cursor.execute("""
-        SELECT id, ip_address FROM raspberries WHERE id != ?
-    """, (raspi_x['id'],))
-    
-    raspi_y_list = []
-    for row in cursor.fetchall():
-        raspi_y_list.append({
-            'id': row[0],
-            'ip_address': row[1],
-            'temperature': get_temperature(row[0]),
-            'cpu_usage': get_cpu_usage(row[1], 'ubuntu', 'password'),
-            'location': get_location(row[0])
-        })
-    conn.commit()
-    conn.close()
+@main.route('/monitoring_individual')
+def monitoring_individual():
+    df = get_temperature_logs()
 
-    best_score = None
-    best_raspi_y = None
+    graphs = []  # 各Raspberry Piの個別グラフをHTML形式で格納するリスト
+    for raspberry_id in df["raspberry"].unique():
+        raspberry_data = df[df["raspberry"] == raspberry_id]
 
-    # マイグレーション先を評価
-    for raspi_y in raspi_y_list:
-        if raspi_y['temperature'] <= raspi_x['temperature']:  # 温度が高すぎない
-            score = evaluate_migration(raspi_x, raspi_y, w_t, w_u, w_d)
-            if best_score is None or score < best_score:
-                best_score = score
-                best_raspi_y = raspi_y
+        # 折れ線グラフを作成
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=raspberry_data["timestamp"],
+            y=raspberry_data["cpu_temperature"],
+            mode='lines',
+            name=f"Raspberry {raspberry_id}"
+        ))
+        fig.update_layout(
+            title=f"Raspberry {raspberry_id} Temperature",
+            xaxis_title="Timestamp",
+            yaxis_title="Temperature (°C)",
+            height=400,
+            width=600
+        )
 
-    if best_raspi_y:
-        logging.info(f"Best Raspberry Pi for migration: {best_raspi_y['id']} at {best_raspi_y['ip_address']} with score {best_score}")
-    else:
-        logging.info("No suitable Raspberry Pi found for migration.")
+        # HTML形式に変換してリストに追加
+        graph_html = fig.to_html(full_html=False)
+        graphs.append(graph_html)
 
-
-
+    # リストの中身をテンプレートでループして表示
+    return render_template('monitoring_individual.html', graphs=graphs)
 
 
 if __name__ == "__main__":
