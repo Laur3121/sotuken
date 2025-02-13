@@ -5,7 +5,7 @@ import paramiko
 import threading
 import datetime
 import subprocess
-
+from .migration_history import log_migration
 # ログ設定
 logging.basicConfig(level=logging.INFO)
 
@@ -71,6 +71,9 @@ def log_temperature(conn, cursor):
             if temperature > 70:
                 logging.info(f"Temperature is {temperature}°C, exceeding threshold. Triggering migration logic.")
                 subprocess.run(["python3", "./app/migration_logic.py"])
+                
+
+                
 
             
         except Exception as e:

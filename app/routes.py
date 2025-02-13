@@ -510,8 +510,8 @@ def monitoring_individual():
             title=f"Raspberry {raspberry_id} Temperature",
             xaxis_title="Timestamp",
             yaxis_title="Temperature (°C)",
-            height=400,
-            width=600
+            height=600,
+            width=900
         )
 
         # HTML形式に変換してリストに追加

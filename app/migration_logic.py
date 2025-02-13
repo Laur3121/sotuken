@@ -2,6 +2,7 @@ import sqlite3
 import re
 import subprocess
 import paramiko
+from migration_history import log_migration
 
 # ユークリッド距離を計算する関数
 def euclidean_distance(x1, y1, x2, y2):
@@ -33,7 +34,6 @@ def evaluate_migration(raspi_x, raspi_y, w_t, w_u, w_d):
     return score
 
 def get_docker_container(ip_address, username, password):
-    # 移行元 (raspi8) のコンテナ情報を取得するコマンド
     command = "docker ps --format '{{.Names}}'"  # コンテナ名のみを取得
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -90,20 +90,20 @@ for row in rows:
     raspberries.append(raspi)
 
 # 重み
-w_t = 1  # 温度の重み
+w_t = 5  # 温度の重み
 w_u = 1  # CPU使用率の重み
-w_d = 1000  # 位置の重み
+w_d = 10  # 位置の重み
 source_ip = None
 container_name = None
 # マイグレーション対象 Raspberry Pi を選ぶ
 migration_scores = []
 for raspi_x in raspberries:
-    # 温度が文字列の場合、数値に変換
     temperature_x = float(raspi_x['temperature'])  # 温度を数値に変換
     
-    if temperature_x > 70:  # 70度を超える場合にスコアを計算
+    # 温度が高いRaspberry Piだけを評価
+    if temperature_x > 70:
         for raspi_y in raspberries:
-            if raspi_x['id'] != raspi_y['id']:  # 同じ Raspberry Pi への移動を避ける
+            if raspi_x['id'] != raspi_y['id']:  # 自分自身への移動はスキップ
                 score = evaluate_migration(raspi_x, raspi_y, w_t, w_u, w_d)
                 migration_scores.append({'from': raspi_x['name'], 'to': raspi_y['name'], 'score': score})
 
@@ -152,6 +152,17 @@ if migration_scores:
         subprocess.run(['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no', destination_ip, f'docker run -d --name {container_name} {container_name}_image'], check=True)
         
         print(f"Successfully migrated container from {source_raspberry['name']} to {best_raspberry['name']}")
+
+        # log_migrationに必要な引数を定義
+        source = source_raspberry['name']  # 温度が高いRaspberry PiのIPアドレスをsourceに設定
+        destination = best_raspberry['name']  # 移行先デバイスのIPや情報を設定
+        reason = "Temperature exceeded threshold"  # 理由として温度超過を設定
+
+
+        # migration_historyに記録
+        log_migration(source, destination, reason, temperature_x)
+
+
     except subprocess.CalledProcessError as e:
         print(f"Error: {e}")
     else:
