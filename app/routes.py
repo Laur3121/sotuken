@@ -489,16 +489,23 @@ def get_temperature_logs():
     df = pd.DataFrame(rows, columns=["raspberry", "name", "ip_address", "cpu_temperature", "timestamp"])
     return df
 
-
 @main.route('/monitoring_individual')
 def monitoring_individual():
     df = get_temperature_logs()
 
-    graphs = []  # 各Raspberry Piの個別グラフをHTML形式で格納するリスト
+    # timestamp を datetime 型に変換（念のため）
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+
+    graphs = []  
+    now = datetime.datetime.now()
+    start_time = now - datetime.timedelta(minutes=15)  
+
     for raspberry_id in df["raspberry"].unique():
         raspberry_data = df[df["raspberry"] == raspberry_id]
 
-        # 折れ線グラフを作成
+        # 最新15分間のデータのみ取得
+        raspberry_data = raspberry_data[raspberry_data["timestamp"] >= start_time]
+
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=raspberry_data["timestamp"],
@@ -510,16 +517,29 @@ def monitoring_individual():
             title=f"Raspberry {raspberry_id} Temperature",
             xaxis_title="Timestamp",
             yaxis_title="Temperature (°C)",
+            xaxis=dict(range=[start_time, now]),  
             height=600,
             width=900
         )
 
-        # HTML形式に変換してリストに追加
         graph_html = fig.to_html(full_html=False)
         graphs.append(graph_html)
 
-    # リストの中身をテンプレートでループして表示
     return render_template('monitoring_individual.html', graphs=graphs)
+
+
+def get_latest_migration_history():
+    conn = sqlite3.connect("migration_history.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM migration_history ORDER BY migration_time DESC LIMIT 20")
+    data = cursor.fetchall()
+    conn.close()
+    return data
+
+@main.route("/migration_history")
+def migration_history():
+    history = get_latest_migration_history()
+    return render_template("migration_history.html", history=history)
 
 
 if __name__ == "__main__":
